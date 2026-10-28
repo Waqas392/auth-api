@@ -267,3 +267,32 @@ def test_unexpected_login_error(monkeypatch):
 
     assert response.status_code == 502
     assert "internal service details" not in response.text
+
+def test_user_metadata_cannot_grant_admin(monkeypatch):
+    ordinary_user = SimpleNamespace(
+        id="u2",
+        email="ordinary@example.com",
+        created_at="2026-01-01",
+        app_metadata={},
+        user_metadata={"role": "admin"},
+    )
+
+    class MetadataAuth(FakeAuth):
+        def get_user(self, token):
+            if token == "ordinary":
+                return SimpleNamespace(user=ordinary_user)
+            return super().get_user(token)
+
+    monkeypatch.setattr(
+        main,
+        "get_client",
+        lambda: SimpleNamespace(auth=MetadataAuth()),
+    )
+
+    response = client.get(
+        "/admin/stats",
+        headers={"Authorization": "Bearer ordinary"},
+    )
+
+    assert response.status_code == 403
+
