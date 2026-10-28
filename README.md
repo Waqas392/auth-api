@@ -1,6 +1,7 @@
-# Auth — Login & Protect
 
-A REST API built with FastAPI and Supabase Auth. It supports user signup, login, logout, token refresh, JWT verification, protected routes, and role-based admin access.
+# Auth - Login & Protect
+
+A REST API built with FastAPI and Supabase Auth. It supports user signup, login, logout, token refresh, JWT verification, protected routes, and admin-only access.
 
 ## Features
 
@@ -16,8 +17,8 @@ A REST API built with FastAPI and Supabase Auth. It supports user signup, login,
 ## Requirements
 
 - Python 3.11 or newer
-- A Supabase project
-- Git (optional, for version control)
+- A Supabase project with email authentication enabled
+- Git
 
 ## Setup
 
@@ -28,23 +29,25 @@ git clone https://github.com/Waqas392/auth-api.git
 cd auth-api
 ```
 
-### 2. Create and activate a virtual environment
+### 2. Create a virtual environment
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-If PowerShell blocks activation, use the virtual environment's Python executable directly:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
+If PowerShell blocks activation, you can use the virtual environment's Python executable directly.
 
 ### 3. Install dependencies
 
 ```powershell
 python -m pip install -r requirements.txt
+```
+
+If you did not activate the environment, use:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 ### 4. Configure environment variables
@@ -56,7 +59,7 @@ Copy-Item .env.example .env
 notepad .env
 ```
 
-Set the following values using your own Supabase project credentials:
+Set your own Supabase project URL and publishable key:
 
 ```dotenv
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
@@ -64,21 +67,15 @@ SUPABASE_KEY=YOUR_SUPABASE_PUBLISHABLE_KEY
 PORT=8000
 ```
 
-Use your Supabase Project URL and publishable key (or legacy `anon` key if supported by your setup). Never use a `service_role` or secret key as the application key.
-
-Keep `.env` private. It is excluded by `.gitignore` and must not be committed.
+Never use a Supabase `service_role` key or secret key as the application key. Keep `.env` private; it is excluded by `.gitignore` and must not be committed.
 
 ### 5. Configure Supabase Auth
 
-In your Supabase dashboard, open Authentication settings and ensure that email authentication and signup are enabled.
+In your Supabase dashboard, enable email authentication and signup. If email confirmation is enabled, confirm the signup email before logging in.
 
-Email confirmation may remain enabled. If it is enabled, confirm the signup email before attempting password login.
-
-For a practice project, use a dedicated Supabase project rather than changing authentication settings in a project used by another application.
+Use a dedicated practice project rather than changing settings in a project used by another application.
 
 ## Run the API
-
-Start the development server:
 
 ```powershell
 python main.py
@@ -88,7 +85,7 @@ Open Swagger UI:
 
 http://127.0.0.1:8000/docs
 
-## API reference
+## API Reference
 
 | Method | Endpoint | Authentication | Expected success |
 |---|---|---|---|
@@ -101,27 +98,30 @@ http://127.0.0.1:8000/docs
 | GET | `/protected/dashboard` | Bearer token | 200 OK |
 | GET | `/admin/stats` | Bearer token and admin role | 200 OK |
 
-Error responses depend on the endpoint and the error returned by Supabase.
+### Common error responses
 
-- `400 Bad Request`: Invalid input or a rejected authentication request.
-- `401 Unauthorized`: Missing, invalid, expired, or otherwise rejected authentication credentials.
-- `403 Forbidden`: The authenticated user lacks the required permission.
-- `502 Bad Gateway`: An upstream authentication service error, if handled that way by the endpoint.
+- `400 Bad Request`: Invalid input or a rejected signup request.
+- `401 Unauthorized`: Missing or invalid authentication credentials.
+- `403 Forbidden`: An authenticated user lacks the required permission.
+- `502 Bad Gateway`: An upstream service error that the API handles as a gateway failure.
 
-## Testing with Swagger
+The exact response depends on the endpoint and the error encountered.
+
+## Test with Swagger
 
 1. Open `/docs`.
 2. Use `POST /auth/signup` to create a test user.
-3. Use `POST /auth/login` to obtain an access token and refresh token.
-4. Click **Authorize** and enter the access token.
-5. Execute `GET /protected/profile` and verify that it returns `200 OK`.
-6. Remove Swagger authorization and repeat the request. The protected endpoint should return `401 Unauthorized`.
-7. Call `POST /auth/refresh` with the refresh token in its JSON request body.
-8. Test `GET /admin/stats` with a normal user's token. It should return `403 Forbidden` when the route's admin-role check is working.
+3. Confirm the user's email if required by your Supabase settings.
+4. Use `POST /auth/login` to obtain an access token and refresh token.
+5. Click **Authorize** and enter the access token if Swagger requests it without the `Bearer ` prefix.
+6. Call `GET /protected/profile`. A valid token should return `200 OK`.
+7. Remove authorization and call the same endpoint again. It should return `401 Unauthorized`.
+8. Call `POST /auth/refresh` with the refresh token in its JSON request body.
+9. Call `GET /admin/stats` with a regular user's token. It should return `403 Forbidden`.
 
-Never share access tokens, refresh tokens, passwords, or `.env` contents publicly.
+Never share access tokens, refresh tokens, passwords, or `.env` contents.
 
-## Automated tests
+## Automated Tests
 
 Run the test suite:
 
@@ -129,25 +129,25 @@ Run the test suite:
 python -m pytest -v
 ```
 
-The automated tests use a mocked Supabase client. They verify application behavior without making real authentication requests. Live integration behavior should also be checked against your Supabase project.
+The automated tests use a mocked Supabase client, so they test the API's behavior without making real authentication requests. Test live integration behavior separately against your Supabase project.
 
 ## Authentication: 401 vs. 403
 
-- **401 Unauthorized:** The request does not have acceptable authentication credentials.
-- **403 Forbidden:** The user is authenticated but does not have permission to access the requested resource.
+- **401 Unauthorized:** The request has missing, invalid, or expired authentication credentials.
+- **403 Forbidden:** The user is authenticated but does not have permission to access the resource.
 
-The admin endpoint requires the role configured by the application's authorization logic.
+The admin endpoint relies on the role-checking logic implemented in the application.
 
-## Token and logout notes
+## Token and Logout Notes
 
-Access tokens expire, and refresh tokens can be used to obtain replacement tokens while the Supabase session remains valid.
+Access tokens expire. Refresh tokens can obtain replacement tokens while the Supabase session remains valid.
 
-The logout endpoint requests session sign-out through Supabase. Clients should discard their local tokens after logout. An already-issued access token may remain usable until expiration depending on how token verification and revocation are implemented.
+The logout endpoint requests sign-out through Supabase. Clients should discard their local tokens after logout. An already-issued access token may remain usable until expiration, depending on how token verification and revocation are implemented.
 
 ## Security
 
 - Never commit `.env`.
 - Never expose Supabase secret or `service_role` keys.
-- Do not commit real passwords, access tokens, or refresh tokens.
+- Never commit real passwords, access tokens, or refresh tokens.
 - Use HTTPS in production.
-- Review authorization rules before deploying the API.
+- Review authentication and authorization rules before deployment.
